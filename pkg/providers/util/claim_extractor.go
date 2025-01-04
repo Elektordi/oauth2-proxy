@@ -139,9 +139,12 @@ func parseJWT(p string) ([]byte, error) {
 }
 
 // getClaimFrom gets a claim from a Json object.
-// It can accept either a single claim name or a json path.
+// It can accept either a single claim name or a json path. The claim is always evaluated first as a single claim name.
 // Paths with indexes are not supported.
 func getClaimFrom(claim string, src *simplejson.Json) interface{} {
+	if value, ok := src.CheckGet(claim); ok {
+		return value.Interface()
+	}
 	claimParts := strings.Split(claim, ".")
 	return src.GetPath(claimParts...).Interface()
 }

@@ -2,10 +2,12 @@ package encryption
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"hash"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +17,7 @@ import (
 const (
 	CodeChallengeMethodPlain = "plain"
 	CodeChallengeMethodS256  = "S256"
+	asciiCharset             = "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"
 )
 
 // SecretBytes attempts to base64 decode the secret, if that fails it treats the secret as binary
@@ -55,7 +58,7 @@ func Validate(cookie *http.Cookie, seed string, expiration time.Duration) (value
 		// creation timestamp stored in the cookie falls within the
 		// window defined by (Now()-expiration, Now()].
 		t = time.Unix(int64(ts), 0)
-		if t.After(time.Now().Add(expiration*-1)) && t.Before(time.Now().Add(time.Minute*5)) {
+		if (expiration == time.Duration(0)) || (t.After(time.Now().Add(expiration*-1)) && t.Before(time.Now().Add(time.Minute*5))) {
 			// it's a valid cookie. now get the contents
 			rawValue, err := base64.URLEncoding.DecodeString(parts[0])
 			if err == nil {
@@ -78,6 +81,15 @@ func SignedValue(seed string, key string, value []byte, now time.Time) (string, 
 	}
 	cookieVal := fmt.Sprintf("%s|%s|%s", encodedValue, timeStr, sig)
 	return cookieVal, nil
+}
+
+// GenerateCodeVerifierString returns a base64 encoded string of n random bytes
+func GenerateCodeVerifierString(n int) (string, error) {
+	data := make([]byte, n)
+	if _, err := io.ReadFull(rand.Reader, data); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(data), nil
 }
 
 func GenerateCodeChallenge(method, codeVerifier string) (string, error) {
